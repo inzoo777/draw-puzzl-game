@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Physics Draw Puzzle</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Fredoka & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+            min-height: 100vh;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+        .font-fredoka { font-family: 'Fredoka', cursive; }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-modal {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .btn-bounce {
+            transition: transform 0.1s ease, filter 0.2s ease;
+        }
+        .btn-bounce:active {
+            transform: scale(0.93);
+        }
+        canvas {
+            touch-action: none;
+            cursor: crosshair;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+    </style>
+</head>
+<body class="flex flex-col h-screen w-screen justify-between items-center relative overflow-hidden select-none">
+
+    <!-- Top Bar Navigation & Info -->
+    <header class="w-full max-w-4xl p-3 px-4 flex justify-between items-center z-10 glass-card rounded-b-2xl shadow-lg mt-0">
+        <div class="flex items-center space-x-2">
+            <button id="btnHome" class="w-10 h-10 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 flex items-center justify-center transition btn-bounce text-lg shadow border border-indigo-400/30" title="Level Select">
+                <i class="fa-solid fa-grid-2"></i>
+                <i class="fa-solid fa-list"></i>
+            </button>
+            <button id="btnSound" class="w-10 h-10 rounded-xl bg-indigo-600/80 hover:bg-indigo-500 flex items-center justify-center transition btn-bounce text-lg shadow border border-indigo-400/30" title="Toggle Sound">
+                <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+            </button>
+        </div>
+
+        <div class="text-center">
+            <h1 class="text-xl md:text-2xl font-black text-amber-400 font-fredoka tracking-wide flex items-center gap-2">
+                <span>Physics Draw</span> ✏️
+            </h1>
+            <div id="levelDisplay" class="text-xs md:text-sm font-semibold text-cyan-300">Level 1</div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <!-- Ink Meter -->
+            <div class="flex flex-col items-end">
+                <div class="text-xs font-bold text-amber-300 flex items-center gap-1">
+                    <span>Ink Left:</span>
+                    <span id="inkPercent">100%</span>
+                </div>
+                <div class="w-24 md:w-32 h-3 bg-slate-900/80 rounded-full p-0.5 border border-indigo-400/40 overflow-hidden">
+                    <div id="inkBar" class="h-full bg-gradient-to-r from-emerald-400 to-amber-400 rounded-full transition-all duration-150" style="width: 100%;"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Game Canvas Wrapper -->
+    <main class="relative flex-1 w-full max-w-4xl my-2 px-2 flex flex-col justify-center items-center">
+        <div class="relative w-full h-full max-h-[74vh] glass-card rounded-3xl overflow-hidden border border-slate-700/60 flex items-center justify-center shadow-2xl">
+            <!-- Game Canvas -->
+            <canvas id="gameCanvas" class="w-full h-full block bg-slate-950/80"></canvas>
+
+            <!-- Play Physics Button -->
+            <button id="btnPlayPhysics" class="absolute top-4 right-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-bold py-2.5 px-5 rounded-2xl shadow-xl flex items-center gap-2 btn-bounce border border-emerald-300/40 text-sm md:text-base">
+                <i class="fa-solid fa-play"></i> <span>Drop Ball</span>
+            </button>
+
+            <!-- Clear Drawing Lines Button -->
+            <button id="btnClearCanvas" class="absolute top-4 left-4 bg-rose-600/80 hover:bg-rose-500 text-white font-bold py-2.5 px-3.5 rounded-2xl shadow-xl flex items-center gap-2 btn-bounce border border-rose-300/40 text-sm">
+                <i class="fa-solid fa-rotate-left"></i> <span class="hidden md:inline">Clear Lines</span>
+            </button>
+
+            <!-- Hint overlay banner -->
+            <div id="hintBanner" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/90 px-4 py-1.5 rounded-full border border-amber-400/30 text-amber-200 text-xs md:text-sm pointer-events-none flex items-center gap-2 text-center shadow-lg">
+                <i class="fa-solid fa-lightbulb text-amber-400 animate-pulse"></i>
+                <span id="hintText">Draw a ramp to guide the ball into the cup!</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Bottom Controls & Tools Bar -->
+    <footer class="w-full max-w-4xl p-3 px-4 glass-card rounded-t-2xl flex flex-wrap justify-between items-center gap-2 mb-0 z-10">
+        <!-- Color Options -->
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-indigo-200 font-semibold hidden sm:inline">Color:</span>
+            <div class="flex items-center gap-2 bg-slate-900/50 p-1.5 rounded-xl border border-white/10">
+                <button data-color="#38bdf8" class="color-btn w-7 h-7 rounded-lg bg-sky-400 ring-2 ring-white transition-all btn-bounce"></button>
+                <button data-color="#f43f5e" class="color-btn w-7 h-7 rounded-lg bg-rose-500 transition-all btn-bounce"></button>
+                <button data-color="#a855f7" class="color-btn w-7 h-7 rounded-lg bg-purple-500 transition-all btn-bounce"></button>
+                <button data-color="#f59e0b" class="color-btn w-7 h-7 rounded-lg bg-amber-500 transition-all btn-bounce"></button>
+            </div>
+        </div>
+
+        <!-- Line Thickness Options -->
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-indigo-200 font-semibold hidden sm:inline">Stroke:</span>
+            <div class="flex items-center gap-1 bg-slate-900/50 p-1 rounded-xl border border-white/10">
+                <button id="sizeThin" class="size-btn px-3 py-1 text-xs rounded-lg bg-indigo-900/60 hover:bg-indigo-700 font-semibold text-slate-200">Thin</button>
+                <button id="sizeNormal" class="size-btn px-3 py-1 text-xs rounded-lg bg-indigo-600 font-bold text-white border border-amber-400">Normal</button>
+                <button id="sizeThick" class="size-btn px-3 py-1 text-xs rounded-lg bg-indigo-900/60 hover:bg-indigo-700 font-semibold text-slate-200">Thick</button>
+            </div>
+        </div>
+
+        <!-- Reset Button -->
+        <div class="flex items-center gap-2">
+            <button id="btnResetLevel" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-bold py-2 px-4 rounded-xl transition btn-bounce flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-arrows-rotate"></i> <span>Reset</span>
+            </button>
+        </div>
+    </footer>
+
+    <!-- LEVEL SELECTION MODAL -->
+    <div id="levelModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 transition-opacity hidden">
+        <div class="glass-modal max-w-lg w-full p-6 rounded-3xl text-center relative animate-fade-in shadow-2xl">
+            <h2 class="text-3xl font-extrabold text-amber-400 mb-1 font-fredoka">Select Level</h2>
+            <p class="text-xs text-slate-300 mb-5">Solve physics puzzles using creative drawing!</p>
+            
+            <!-- Grid of Levels -->
+            <div id="levelsGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-3 my-4 max-h-[50vh] overflow-y-auto p-2">
+                <!-- Levels rendered dynamically -->
+            </div>
+
+            <button id="btnCloseModal" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-8 rounded-2xl shadow-lg btn-bounce text-sm">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- WIN LEVEL MODAL -->
+    <div id="winModal" class="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-modal max-w-md w-full p-6 rounded-3xl border border-emerald-400/40 text-center relative shadow-2xl scale-95 transition-transform">
+            <div class="w-20 h-20 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-3 border border-emerald-400/40 text-4xl animate-bounce">
+                🏆
+            </div>
+            <h2 class="text-3xl font-extrabold text-emerald-400 mb-1 font-fredoka">Level Completed!</h2>
+            <p class="text-xs text-slate-300 mb-4">Great job! You solved the puzzle.</p>
+
+            <!-- Star Rating Display -->
+            <div class="flex justify-center items-center gap-3 text-4xl my-4" id="starRatingDisplay">
+                <i class="fa-solid fa-star text-amber-400 drop-shadow-md"></i>
+                <i class="fa-solid fa-star text-amber-400 drop-shadow-md"></i>
+                <i class="fa-solid fa-star text-amber-400 drop-shadow-md"></i>
+            </div>
+
+            <p id="winStatText" class="text-xs text-amber-200/90 font-medium mb-6">Ink used: 35%</p>
+
+            <div class="flex justify-center gap-3">
+                <button id="btnRetryWin" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-5 rounded-2xl shadow-md btn-bounce flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-rotate-right"></i> Replay
+                </button>
+                <button id="btnNextLevel" class="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold py-3 px-6 rounded-2xl shadow-lg btn-bounce flex items-center gap-2 text-sm">
+                    <span>Next Level</span> <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* ===================================================
+           WEB AUDIO SYNTHESIZER FOR SOUND EFFECTS
+           =================================================== */
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContextClass();
+                }
+            }
+
+            playClick() {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(850, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playDraw() {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(280 + Math.random() * 60, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.02, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 0.04);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.04);
+            }
+
+            playWin() {
+                if (this.muted) return;
+                this.init();
+                const notes = [261.63, 329.63, 392.00, 523.25]; // C4, E4, G4, C5
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.value = freq;
+                    const startTime = this.ctx.currentTime + idx * 0.09;
+                    gain.gain.setValueAtTime(0.2, startTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.35);
+                });
+            }
+
+            playBounce() {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            }
+        }
+
+        const sound = new SoundFX();
+
+        /* ===================================================
+           PUZZLE LEVELS DATA (Normalized 0-100 coordinates)
+           =================================================== */
+        const LEVELS = [
+            {
+                id: 1,
+                name: "Level 1: Simple Drop",
+                hint: "Draw a simple line below the ball to guide it into the goal!",
+                ball: { x: 20, y: 20, r: 16 },
+                target: { x: 75, y: 75, w: 60, h: 65 },
+                obstacles: [
+                    { type: 'platform', x: 10, y: 30, w: 25, h: 8 }
+                ],
+                maxInk: 1000
+            },
+            {
+                id: 2,
+                name: "Level 2: Wall Obstacle",
+                hint: "Draw a bridge over the center obstacle!",
+                ball: { x: 15, y: 20, r: 16 },
+                target: { x: 85, y: 75, w: 60, h: 65 },
+                obstacles: [
+                    { type: 'platform', x: 10, y: 30, w: 20, h: 8 },
+                    { type: 'wall', x: 50, y: 35, w: 10, h: 45 }
+                ],
+                maxInk: 900
+            },
+            {
+                id: 3,
+                name: "Level 3: Funnel & Bounce",
+                hint: "Draw a steep curved slide to jump the ball into the elevated basket!",
+                ball: { x: 15, y: 20, r: 16 },
+                target: { x: 82, y: 35, w: 60, h: 65 },
+                obstacles: [
+                    { type: 'platform', x: 10, y: 35, w: 20, h: 8 },
+                    { type: 'wall', x: 55, y: 40, w: 10, h: 50 },
+                    { type: 'platform', x: 75, y: 50, w: 20, h: 8 }
+                ],
+                maxInk: 850
+            },
+            {
+                id: 4,
+                name: "Level 4: Narrow Gap",
+                hint: "Funnel the ball carefully through the middle gap!",
+                ball: { x: 50, y: 15, r: 16 },
+                target: { x: 50, y: 80, w: 65, h: 65 },
+                obstacles: [
+                    { type: 'wall', x: 18, y: 35, w: 22, h: 30 },
+                    { type: 'wall', x: 60, y: 35, w: 22, h: 30 }
+                ],
+                maxInk: 750
+            },
+            {
+                id: 5,
+                name: "Level 5: Multi-Bounce ZigZag",
+                hint: "Direct the ball in a zigzag motion through the alternating posts!",
+                ball: { x: 15, y: 15, r: 16 },
+                target: { x: 80, y: 80, w: 60, h: 65 },
+                obstacles: [
+                    { type: 'platform', x: 10, y: 25, w: 20, h: 8 },
+                    { type: 'wall', x: 38, y: 0, w: 8, h: 55 },
+                    { type: 'wall', x: 65, y: 45, w: 8, h: 55 }
+                ],
+                maxInk: 800
+            },
+            {
+                id: 6,
+                name: "Level 6: Grand Master Challenge",
+                hint: "Guide the ball from right to left using precise curves!",
+                ball: { x: 85, y: 15, r: 16 },
+                target: { x: 15, y: 80, w: 60, h: 65 },
+                obstacles: [
+                    { type: 'platform', x: 75, y: 25, w: 20, h: 8 },
+                    { type: 'wall', x: 50, y: 20, w: 10, h: 40 },
+                    { type: 'platform', x: 25, y: 60, w: 30, h: 8 }
+                ],
+                maxInk: 700
+            }
+        ];
+
+        // DOM Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const inkBar = document.getElementById('inkBar');
+        const inkPercentText = document.getElementById('inkPercent');
+        const levelDisplay = document.getElementById('levelDisplay');
+        const hintText = document.getElementById('hintText');
+        const levelModal = document.getElementById('levelModal');
+        const winModal = document.getElementById('winModal');
+        const levelsGrid = document.getElementById('levelsGrid');
+        const soundBtn = document.getElementById('btnSound');
+        const soundIcon = document.getElementById('soundIcon');
+
+        // State Variables
+        let currentLevelIdx = 0;
+        let isPhysicsRunning = false;
+        let isDrawing = false;
+        let currentBrushColor = '#38bdf8';
+        let currentBrushSize = 8;
+        let drawnLines = []; 
+        let currentLine = null;
+        let inkUsed = 0;
+
+        // Ball Physics Properties
+        let ball = {
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            r: 16,
+            gravity: 0.25,
+            bounce: 0.55,
+            friction: 0.985
+        };
+
+        // Saved stars progress
+        let levelStars = JSON.parse(localStorage.getItem('draw_puzzle_stars_en') || '{}');
+
+        // Resize Canvas dynamically
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            drawScene();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Coordinate scaling helpers
+        function toCanvasX(pct) { return (pct / 100) * canvas.width; }
+        function toCanvasY(pct) { return (pct / 100) * canvas.height; }
+
+        function loadLevel(idx) {
+            currentLevelIdx = idx;
+            const lvl = LEVELS[currentLevelIdx];
+            
+            isPhysicsRunning = false;
+            drawnLines = [];
+            currentLine = null;
+            inkUsed = 0;
+
+            // Reset ball position
+            ball.x = toCanvasX(lvl.ball.x);
+            ball.y = toCanvasY(lvl.ball.y);
+            ball.vx = 0;
+            ball.vy = 0;
+            ball.r = lvl.ball.r;
+
+            // Update UI elements
+            levelDisplay.innerText = lvl.name;
+            hintText.innerText = lvl.hint;
+            updateInkUI();
+
+            drawScene();
+        }
+
+        function updateInkUI() {
+            const lvl = LEVELS[currentLevelIdx];
+            const remainingRatio = Math.max(0, 1 - inkUsed / lvl.maxInk);
+            const pct = Math.round(remainingRatio * 100);
+            
+            inkBar.style.width = `${pct}%`;
+            inkPercentText.innerText = `${pct}%`;
+
+            if (pct > 50) {
+                inkBar.className = "h-full bg-gradient-to-r from-emerald-400 to-amber-400 rounded-full transition-all duration-150";
+            } else if (pct > 20) {
+                inkBar.className = "h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-150";
+            } else {
+                inkBar.className = "h-full bg-gradient-to-r from-orange-500 to-rose-600 rounded-full transition-all duration-150";
+            }
+        }
+
+        // Math helper for point-to-segment collision
+        function getClosestPointOnSegment(px, py, ax, ay, bx, by) {
+            const abx = bx - ax;
+            const aby = by - ay;
+            let t = ((px - ax) * abx + (py - ay) * aby) / (abx * abx + aby * aby);
+            t = Math.max(0, Math.min(1, t));
+            return { x: ax + t * abx, y: ay + t * aby };
+        }
+
+        function handleBallLineCollision(line) {
+            for (let i = 0; i < line.points.length - 1; i++) {
+                const p1 = line.points[i];
+                const p2 = line.points[i + 1];
+
+                const closest = getClosestPointOnSegment(ball.x, ball.y, p1.x, p1.y, p2.x, p2.y);
+                const dx = ball.x - closest.x;
+                const dy = ball.y - closest.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const minDist = ball.r + (line.size / 2);
+
+                if (dist < minDist && dist > 0) {
+                    const nx = dx / dist;
+                    const ny = dy / dist;
+
+                    const overlap = minDist - dist;
+                    ball.x += nx * overlap;
+                    ball.y += ny * overlap;
+
+                    const dot = ball.vx * nx + ball.vy * ny;
+                    if (dot < 0) {
+                        ball.vx = (ball.vx - 1.7 * dot * nx) * ball.friction;
+                        ball.vy = (ball.vy - 1.7 * dot * ny) * ball.friction;
+                        sound.playBounce();
+                    }
+                }
+            }
+        }
+
+        function handleBallObstacleCollision(obs) {
+            const ox = toCanvasX(obs.x);
+            const oy = toCanvasY(obs.y);
+            const ow = toCanvasX(obs.w);
+            const oh = toCanvasY(obs.h);
+
+            const closestX = Math.max(ox, Math.min(ball.x, ox + ow));
+            const closestY = Math.max(oy, Math.min(ball.y, oy + oh));
+
+            const dx = ball.x - closestX;
+            const dy = ball.y - closestY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist < ball.r) {
+                let nx = dx / (dist || 1);
+                let ny = dy / (dist || 1);
+
+                if (dist === 0) {
+                    nx = 0;
+                    ny = -1;
+                }
+
+                const overlap = ball.r - dist;
+                ball.x += nx * overlap;
+                ball.y += ny * overlap;
+
+                const dot = ball.vx * nx + ball.vy * ny;
+                if (dot < 0) {
+                    ball.vx = (ball.vx - 1.6 * dot * nx) * ball.friction;
+                    ball.vy = (ball.vy - 1.6 * dot * ny) * ball.friction;
+                    sound.playBounce();
+                }
+            }
+        }
+
+        function checkWinCondition() {
+            const lvl = LEVELS[currentLevelIdx];
+            const tx = toCanvasX(lvl.target.x);
+            const ty = toCanvasY(lvl.target.y);
+            const tw = toCanvasX(lvl.target.w);
+            const th = toCanvasY(lvl.target.h);
+
+            // Ball inside target cup bounds
+            if (ball.x > tx && ball.x < tx + tw && ball.y > ty && ball.y < ty + th) {
+                isPhysicsRunning = false;
+                sound.playWin();
+
+                // Calculate stars based on remaining ink percentage
+                const remainingRatio = Math.max(0, 1 - inkUsed / lvl.maxInk);
+                let stars = 1;
+                if (remainingRatio > 0.6) stars = 3;
+                else if (remainingRatio > 0.3) stars = 2;
+
+                levelStars[currentLevelIdx] = Math.max(levelStars[currentLevelIdx] || 0, stars);
+                localStorage.setItem('draw_puzzle_stars_en', JSON.stringify(levelStars));
+
+                showWinModal(stars, Math.round((inkUsed / lvl.maxInk) * 100));
+            }
+        }
+
+        function updatePhysics() {
+            if (!isPhysicsRunning) return;
+
+            ball.vy += ball.gravity;
+            ball.vx *= ball.friction;
+            ball.vy *= ball.friction;
+
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+
+            const lvl = LEVELS[currentLevelIdx];
+
+            // Boundaries
+            if (ball.x - ball.r < 0) {
+                ball.x = ball.r;
+                ball.vx *= -0.5;
+            }
+            if (ball.x + ball.r > canvas.width) {
+                ball.x = canvas.width - ball.r;
+                ball.vx *= -0.5;
+            }
+            if (ball.y - ball.r < 0) {
+                ball.y = ball.r;
+                ball.vy *= -0.5;
+            }
+            // Reset if ball falls out of screen
+            if (ball.y - ball.r > canvas.height) {
+                isPhysicsRunning = false;
+                ball.x = toCanvasX(lvl.ball.x);
+                ball.y = toCanvasY(lvl.ball.y);
+                ball.vx = 0;
+                ball.vy = 0;
+            }
+
+            // Collisions
+            drawnLines.forEach(line => handleBallLineCollision(line));
+            lvl.obstacles.forEach(obs => handleBallObstacleCollision(obs));
+
+            checkWinCondition();
+        }
+
+        function drawScene() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const lvl = LEVELS[currentLevelIdx];
+
+            // 1. Draw Target Basket
+            const tx = toCanvasX(lvl.target.x);
+            const ty = toCanvasY(lvl.target.y);
+            const tw = toCanvasX(lvl.target.w);
+            const th = toCanvasY(lvl.target.h);
+
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.roundRect(tx, ty, tw, th, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 22px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('🏆', tx + tw / 2, ty + th / 2 + 7);
+
+            // 2. Draw Obstacles
+            lvl.obstacles.forEach(obs => {
+                const ox = toCanvasX(obs.x);
+                const oy = toCanvasY(obs.y);
+                const ow = toCanvasX(obs.w);
+                const oh = toCanvasY(obs.h);
+
+                ctx.fillStyle = obs.type === 'wall' ? '#475569' : '#334155';
+                ctx.strokeStyle = '#64748b';
+                ctx.lineWidth = 3;
+
+                ctx.beginPath();
+                ctx.roundRect(ox, oy, ow, oh, 8);
+                ctx.fill();
+                ctx.stroke();
+            });
+
+            // 3. Draw Completed Lines
+            drawnLines.forEach(line => {
+                if (line.points.length < 2) return;
+                ctx.strokeStyle = line.color;
+                ctx.lineWidth = line.size;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(line.points[0].x, line.points[0].y);
+                for (let i = 1; i < line.points.length; i++) {
+                    ctx.lineTo(line.points[i].x, line.points[i].y);
+                }
+                ctx.stroke();
+            });
+
+            // 4. Draw Active Line
+            if (currentLine && currentLine.points.length > 1) {
+                ctx.strokeStyle = currentLine.color;
+                ctx.lineWidth = currentLine.size;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                ctx.moveTo(currentLine.points[0].x, currentLine.points[0].y);
+                for (let i = 1; i < currentLine.points.length; i++) {
+                    ctx.lineTo(currentLine.points[i].x, currentLine.points[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // 5. Draw Ball
+            ctx.shadowColor = 'rgba(236, 72, 153, 0.6)';
+            ctx.shadowBlur = 12;
+
+            const gradient = ctx.createRadialGradient(
+                ball.x - ball.r * 0.3, ball.y - ball.r * 0.3, ball.r * 0.2,
+                ball.x, ball.y, ball.r
+            );
+            gradient.addColorStop(0, '#f472b6');
+            gradient.addColorStop(1, '#db2777');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Ball Face Details
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(ball.x - 4, ball.y - 3, 3, 0, Math.PI * 2);
+            ctx.arc(ball.x + 4, ball.y - 3, 3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function gameLoop() {
+            updatePhysics();
+            drawScene();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function getCanvasPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return {
+                x: clientX - rect.left,
+                y: clientY - rect.top
+            };
+        }
+
+        function startDrawing(e) {
+            if (isPhysicsRunning) return;
+
+            const lvl = LEVELS[currentLevelIdx];
+            if (inkUsed >= lvl.maxInk) return;
+
+            isDrawing = true;
+            const pos = getCanvasPos(e);
+
+            currentLine = {
+                color: currentBrushColor,
+                size: currentBrushSize,
+                points: [pos]
+            };
+            sound.playDraw();
+        }
+
+        function drawMove(e) {
+            if (!isDrawing || !currentLine) return;
+
+            const pos = getCanvasPos(e);
+            const lastPos = currentLine.points[currentLine.points.length - 1];
+            const dist = Math.hypot(pos.x - lastPos.x, pos.y - lastPos.y);
+
+            if (dist > 4) {
+                const lvl = LEVELS[currentLevelIdx];
+                if (inkUsed + dist > lvl.maxInk) {
+                    stopDrawing();
+                    return;
+                }
+
+                inkUsed += dist;
+                currentLine.points.push(pos);
+                updateInkUI();
+                sound.playDraw();
+            }
+        }
+
+        function stopDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (currentLine && currentLine.points.length > 1) {
+                drawnLines.push(currentLine);
+            }
+            currentLine = null;
+        }
+
+        // Mouse Events
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', drawMove);
+        window.addEventListener('mouseup', stopDrawing);
+
+        // Touch Events
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            startDrawing(e);
+        }, { passive: false });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            drawMove(e);
+        }, { passive: false });
+
+        window.addEventListener('touchend', stopDrawing);
+
+        // UI Event Handlers
+        document.getElementById('btnPlayPhysics').addEventListener('click', () => {
+            sound.playClick();
+            isPhysicsRunning = true;
+        });
+
+        document.getElementById('btnClearCanvas').addEventListener('click', () => {
+            sound.playClick();
+            if (isPhysicsRunning) return;
+            drawnLines = [];
+            inkUsed = 0;
+            updateInkUI();
+        });
+
+        document.getElementById('btnResetLevel').addEventListener('click', () => {
+            sound.playClick();
+            loadLevel(currentLevelIdx);
+        });
+
+        soundBtn.addEventListener('click', () => {
+            sound.muted = !sound.muted;
+            soundIcon.className = sound.muted ? "fa-solid fa-volume-xmark" : "fa-solid fa-volume-high";
+        });
+
+        // Brush Colors
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                sound.playClick();
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-white'));
+                btn.classList.add('ring-2', 'ring-white');
+                currentBrushColor = btn.dataset.color;
+            });
+        });
+
+        // Brush Sizes
+        const sizeThin = document.getElementById('sizeThin');
+        const sizeNormal = document.getElementById('sizeNormal');
+        const sizeThick = document.getElementById('sizeThick');
+
+        function setBrushSizeUI(activeBtn, size) {
+            sound.playClick();
+            [sizeThin, sizeNormal, sizeThick].forEach(b => {
+                b.classList.remove('border', 'border-amber-400', 'text-white', 'bg-indigo-600');
+                b.classList.add('text-slate-200', 'bg-indigo-900/60');
+            });
+            activeBtn.classList.add('border', 'border-amber-400', 'text-white', 'bg-indigo-600');
+            currentBrushSize = size;
+        }
+
+        sizeThin.addEventListener('click', () => setBrushSizeUI(sizeThin, 4));
+        sizeNormal.addEventListener('click', () => setBrushSizeUI(sizeNormal, 8));
+        sizeThick.addEventListener('click', () => setBrushSizeUI(sizeThick, 14));
+
+        // Level Select Modal
+        document.getElementById('btnHome').addEventListener('click', () => {
+            sound.playClick();
+            renderLevelsGrid();
+            levelModal.classList.remove('hidden');
+        });
+
+        document.getElementById('btnCloseModal').addEventListener('click', () => {
+            sound.playClick();
+            levelModal.classList.add('hidden');
+        });
+
+        function renderLevelsGrid() {
+            levelsGrid.innerHTML = '';
+            LEVELS.forEach((lvl, i) => {
+                const stars = levelStars[i] || 0;
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition btn-bounce border ${
+                    i === currentLevelIdx ? 'bg-indigo-600/90 border-amber-400' : 'bg-slate-900/60 border-indigo-400/20 hover:bg-indigo-800/40'
+                }`;
+
+                let starsHTML = '';
+                for (let s = 1; s <= 3; s++) {
+                    starsHTML += `<i class="fa-solid fa-star text-xs ${s <= stars ? 'text-amber-400' : 'text-slate-600'}"></i>`;
+                }
+
+                card.innerHTML = `
+                    <span class="text-base font-bold font-fredoka text-amber-300">Level ${i + 1}</span>
+                    <div class="flex gap-0.5 mt-1">${starsHTML}</div>
+                `;
+
+                card.addEventListener('click', () => {
+                    sound.playClick();
+                    loadLevel(i);
+                    levelModal.classList.add('hidden');
+                });
+
+                levelsGrid.appendChild(card);
+            });
+        }
+
+        function showWinModal(stars, inkPct) {
+            const starContainer = document.getElementById('starRatingDisplay');
+            starContainer.innerHTML = '';
+            for (let s = 1; s <= 3; s++) {
+                starContainer.innerHTML += `<i class="fa-solid fa-star ${s <= stars ? 'text-amber-400 animate-bounce' : 'text-slate-600'}"></i>`;
+            }
+
+            document.getElementById('winStatText').innerText = `Used ${inkPct}% of maximum ink allowance.`;
+            winModal.classList.remove('hidden');
+        }
+
+        document.getElementById('btnRetryWin').addEventListener('click', () => {
+            sound.playClick();
+            winModal.classList.add('hidden');
+            loadLevel(currentLevelIdx);
+        });
+
+        document.getElementById('btnNextLevel').addEventListener('click', () => {
+            sound.playClick();
+            winModal.classList.add('hidden');
+            const nextIdx = (currentLevelIdx + 1) % LEVELS.length;
+            loadLevel(nextIdx);
+        });
+
+        // Initialize on page load
+        window.onload = function () {
+            resizeCanvas();
+            loadLevel(0);
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
